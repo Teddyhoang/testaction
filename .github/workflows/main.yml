@@ -19,13 +19,12 @@ jobs:
 
       - name: Get Commit SHA
         run: echo "COMMIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+        
       - name: Set github env image name
         run: echo "IMAGE_NAME=$(echo $DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }})" >> $GITHUB_ENV
-      - name: Check env
-        run: echo $IMAGE_NAME
 
-      # - name: Build and Tag Docker Image
-      #   run: docker build -t $IMAGE_NAME -f Dockerfile .
+      - name: Build and Tag Docker Image
+        run: docker build -t $IMAGE_NAME -f Dockerfile .
   deploy:
     runs-on: self-hosted
     needs: [build]

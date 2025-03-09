@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+env:
+  DOCKER_HUB_NAMESPACE: hoangcn
+  REPOSITORY_NAME_PART: hoangcn
+  
 jobs:
   build:
     runs-on: self-hosted
@@ -18,7 +22,7 @@ jobs:
 
       - name: Build and Tag Docker Image
         run: |
-          IMAGE_NAME=$DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }}
+          echo "IMAGE_NAME=$DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }}" >> $GITHUB_ENV
           docker build -t $IMAGE_NAME .
   deploy:
     runs-on: self-hosted

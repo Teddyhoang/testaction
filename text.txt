@@ -1,3 +1,430 @@
+version: "3"
 services:
+  postgres:
+    restart: always
+    image: postgres:17-alpine
+    container_name: postgres
+    pull_policy: if_not_present
+    command: -c 'max_connections=1000'
+    ports:
+      - "5432:5432"
+    volumes:
+      - psgl:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=abe1207d98e34cfeb4c2764f9a95c7b2
+      - POSTGRES_DB=ekyc-interlink
+  
+  pgadmin:
+    restart: always
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@interlinklabs.org
+      - PGADMIN_DEFAULT_PASSWORD=17fa3d401b3149a6a82245455a397424
+    depends_on:
+      - postgres
+
+  redis:
+    restart: always
+    image: redis:7.4-alpine
+    container_name: redis
+    pull_policy: if_not_present
+    ports:
+      - "6379:6379"
+    command: redis-server --bind redis --port 6379 --appendonly no
+
+  minio:
+    restart: always
+    image: minio/minio
+    container_name: minio
+    pull_policy: if_not_present
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+    - ./minio:/data
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: bab15416b6184d709c514d4d05c868ef
+    command: minio server /data --console-address ":9001"
+
+  face_index_storage:
+    restart: always
+    pull_policy: if_not_present
+    image: techainer1t/lib_face_recognition:model_storage-disable_deepfake_model-cc37a892
+    env_file:
+      - storage.env
+    depends_on: 
+      - minio
+
+  triton:
+    restart: always
+    image: techainer1t/tritonserver:22.07-py3
+    container_name: triton
+    pull_policy: if_not_present
+    ports:
+      - "8000"
+      - "8001"
+      - "8002"
+    volumes:
+    - ./models:/models
+    command: tritonserver --model-repository=/models --disable-auto-complete-config --exit-on-error=false --model-control-mode=poll --repository-poll-secs=60
+    environment: 
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: bab15416b6184d709c514d4d05c868ef
+      NVIDIA_VISIBLE_DEVICES: all
+    runtime: nvidia
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+            memory: 16G
+        reservations:
+              devices:
+              - driver: nvidia
+                # device_ids: ['0:0']
+                count: all
+                capabilities: [gpu, utility, compute, video]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      - minio
+
+  idcard:
+    restart: always
+    image: techainer1t/vietnamese-identity-card:triton-spinnel-4630e6d
+    pull_policy: if_not_present
+    ports:
+      - "8080"
+    deploy:
+      resources:
+          limits:
+            memory: 8G
+      replicas: 2
+    env_file:
+      - storage.env
+    environment:
+      flow_mode: triton
+      triton_url: triton:8001
+
+      text_normalization: "http://addr_norm:8080"
+      check_liveness_card: False
+      check_liveness_face: True
+
+      MAX_THREADS: 12
+      concurrency_client: 16
+      MAX_PARALLEL_THREADS: 16
+      recognition_model_path: models/face_recognition/2/model.pt
+      device: cpu
+      UVICORN_WORKERS: 3
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on: 
+      # - addr_norm
+      - triton
+      - minio
+  
+  idcard-debug:
+    restart: always
+    image: techainer1t/vietnamese-identity-card:triton-spinnel-4630e6d
+    pull_policy: if_not_present
+    ports:
+      - "19009:8080"
+    # command: sleep infinity
+    env_file:
+      - storage.env
+    environment:
+      flow_mode: triton
+      triton_url: triton:8001
+
+      text_normalization: "http://addr_norm:8080"
+      check_liveness_card: False
+      check_liveness_face: True
+
+      MAX_THREADS: 12
+      concurrency_client: 16
+      MAX_PARALLEL_THREADS: 16
+      recognition_model_path: models/face_recognition/2/model.pt
+      device: cpu
+      UVICORN_WORKERS: 1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on: 
+      # - addr_norm
+      - triton
+      - minio
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.2
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      - QDRANT__LOG_LEVEL=DEBUG
+    volumes:
+      - ./qdrant:/qdrant/storage:z
+  
+  weaviate:
+    command:
+    - --host
+    - 0.0.0.0
+    - --port
+    - '8080'
+    - --scheme
+    - http
+    image: semitechnologies/weaviate:1.27.2
+    ports:
+    - 18080:8080
+    restart: always
+    volumes:
+    - ./weaviate:/var/lib/weaviate
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      # ENABLE_MODULES: 'text2vec-cohere,text2vec-huggingface,text2vec-palm,text2vec-openai,generative-openai,generative-cohere,generative-palm,ref2vec-centroid,reranker-cohere,qna-openai'
+      CLUSTER_HOSTNAME: 'node1'
+
+  ekyc:
+    image: techainer1t/ekyc-vietnam-nestjs-backend:spinel-42aced13
+    restart: always
+    ports:
+      - "3000"
+    deploy:
+      resources:
+          limits:
+            memory: 2G
+      replicas: 2
+    env_file:
+      - ekyc.env
+    depends_on: 
+      - minio
+      - postgres
+      - redis
+      - qdrant
+      - weaviate
+      - idcard
+
+  ekyc_staging:
+    image: techainer1t/ekyc-vietnam-nestjs-backend:spinel-9c035cd2
+    restart: always
+    ports:
+    - 3005:3000
+    deploy:
+      resources:
+          limits:
+            memory: 2G
+    env_file:
+      - ekyc.env
+    depends_on: 
+      - minio
+      - postgres
+      - redis
+      - qdrant
+      - weaviate
+      - idcard
+
+  ekyc_migrate:
+    image: techainer1t/ekyc-vietnam-nestjs-backend:spinel-cd363f20
+    restart: always
+    ports:
+      - "3000"
+    deploy:
+      resources:
+          limits:
+            memory: 2G
+      replicas: 1
+    env_file:
+      - ekyc.env
+    command: tail -F anything
+    depends_on: 
+      - minio
+      - postgres
+      - redis
+      - qdrant
+      - weaviate
+      - idcard
+
+  loadbalancer:
+    image: nginx:latest
+    pull_policy: if_not_present
+    container_name: loadbalancer
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "30000:80"
+    depends_on: 
+      - ekyc
+    restart: always
+
+  frpc:
+    image: snowdreamtech/frpc:0.49.0
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./frpc.ini:/etc/frp/frpc.ini
+
+
+  # Redpanda
+  redpanda:
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      # Address the broker advertises to clients that connect to the Kafka API.
+      # Use the internal addresses to connect to the Redpanda brokers'
+      # from inside the same Docker network.
+      # Use the external addresses to connect to the Redpanda brokers'
+      # from outside the Docker network.
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      # Address the broker advertises to clients that connect to the HTTP Proxy.
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      # Redpanda brokers use the RPC API to communicate with each other internally.
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      # Mode dev-container uses well-known configuration properties for development in containers.
+      - --mode dev-container
+      # Tells Seastar (the framework Redpanda uses under the hood) to use 1 core on the system.
+      - --smp 1
+      - --default-log-level=info
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.12
+    container_name: redpanda
+    volumes:
+      - redpanda:/var/lib/redpanda/data
+    ports:
+      - 18081:18081
+      - 18082:18082
+      - 19092:19092
+      - 19644:9644
+      
+  console:
+    container_name: redpanda-console
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:9092"]
+          schemaRegistry:
+            enabled: true
+            urls: ["http://redpanda:8081"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda:9644"]
+    ports:
+      - 8080:8080
+    depends_on:
+      - redpanda
+
+  # Dev 
+  dev:
+    build:
+      context: .
+      dockerfile: ./dev/Dockerfile
+    volumes:
+      - ../../ekyc-vietnam-nestjs-backend:/app
+    ports:
+      - "3000:3000"
+    env_file:
+      - ekyc.env
+    environment:
+      NODE_ENV: development
+    command: tail -F anything
+    depends_on: 
+      - minio
+      - postgres
+      - redis
+      - qdrant
+      - weaviate
+      - idcard
+  
+  generate_face_service:
+    build:
+      context: ./face_style_comfyui/
+      dockerfile: Dockerfile.client
+    image: test:v0.1
+    container_name: face_style_client
+    restart: always
+    ports:
+      - "19999:19999"
+    environment:
+      - GEN_API_MODE=external
+      - KAFKA_BROKER=redpanda:9092
+      - GENERATE_FACE_API=https://face-style-mooc.tunnel.techainer.com/api/generate_image_local
+      - MINIO_ENDPOINT=https://s3-interlink.tunnel.techainer.com
+      - MINIO_ACCESS_KEY=admin
+      - MINIO_SECRET_KEY=bab15416b6184d709c514d4d05c868ef
+      - MINIO_BUCKET_NAME=ekyc-interlink
+      - INPUT_TOPIC=generate_image_queue_input
+      - OUTPUT_TOPIC=generate_image_queue_output
+      - DATABASE_ACCOUNT=postgres
+      - DATABASE_PASSWORD=abe1207d98e34cfeb4c2764f9a95c7b2
+      - DATABASE_NAME=ekyc-interlink
+      - DATABASE_URI=postgres:5432
+      - COMFY_BACKEND_URL=0.0.0.0:8188
+    depends_on:
+      - redpanda
+
+  # Interlink
+  mongo:
+    image: mongo:8.0
+    container_name: mongo
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongodb:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
+
   interlink_backend:
-    image: hoangcn/hoangcn:1.1.1
+    image: sadljkhfalsdkf:1111.2
+    container_name: interlink_backend
+    restart: always
+    ports:
+      - "3009:3000"
+    env_file:
+      - interlink-backend.env
+    depends_on: 
+      - ekyc
+      - mongo
+      - redis
+
+  interlink_notification:
+    image: techainer1t/interlink-notification:master-0.6.5
+    container_name: interlink_notification
+    restart: always
+    ports:
+      - "3011:3000"
+    env_file:
+      - interlink-notification.env
+
+volumes:
+  psgl:
+  redpanda:

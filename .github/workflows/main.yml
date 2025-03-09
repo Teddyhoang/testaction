@@ -40,9 +40,9 @@ jobs:
         /interlink_backend:/ {found=1}
         found && /image:/ {$0="    image: " new_image; found=0}
         {print}
-        ' /home/hoangcn/testaction/text.txt > temp.txt && mv temp.txt /home/hoangcn/testactiontext.txt
+        ' /home/hoangcn/testaction/text.txt > temp.txt && mv temp.txt /home/hoangcn/testaction/text.txt
         
     - name: check file
       run: |
-        yq e '.services.interlink_backend.image' /home/hoangcn/testactiontext.txt
+        yq e '.services.interlink_backend.image' /home/hoangcn/testaction/text.txt
       

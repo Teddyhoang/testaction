@@ -12,7 +12,8 @@ env:
 jobs:
   build:
     runs-on: self-hosted
-
+    outputs:
+      image_name: ${{ steps.builds.outputs.IMAGE_NAME }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -21,19 +22,21 @@ jobs:
         run: echo "COMMIT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
         
       - name: Set github env image name
-        run: echo "IMAGE_NAME=$(echo $DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }})" >> $GITHUB_ENV
+        id: builds
+        run: echo "IMAGE_NAME=$(echo $DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }})" >> $GITHUB_OUTPUT
 
       - name: Build and Tag Docker Image
         run: docker build -t $IMAGE_NAME -f Dockerfile .
   deploy:
     runs-on: self-hosted
     needs: [build]
+    env:
+      IMAGE_NAME: ${{ needs.build.outputs.image_name }}
     steps:
     - name: test env image name
-      run: ${{ needs.build.env.IMAGE_NAME }}
-    - name: change env
-      run: IMAGENAME=$(echo ${{ needs.build.env.IMAGE_NAME }})
+      run: echo ${{ env.IMAGE_NAME }}
+      
     - name: change image name
       run: |
-        sed -i "/interlink_backend:/,/image:/s/\(image:\s*\)[^ ]*/\1$IMAGENAME/" text.txt
+        sed -i "/interlink_backend:/,/image:/s/\(image:\s*\)[^ ]*/\1${{ env.IMAGE_NAME }}/" text.txt
       

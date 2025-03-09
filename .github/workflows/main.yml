@@ -23,7 +23,7 @@ jobs:
       - name: Build and Tag Docker Image
         run: |
           echo "IMAGE_NAME=$DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }}" >> $GITHUB_ENV
-          docker build -t $IMAGE_NAME
+          docker build -t $IMAGE_NAME -f Dockerfile .
   deploy:
     runs-on: self-hosted
     needs: [build]

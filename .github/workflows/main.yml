@@ -42,7 +42,12 @@ jobs:
         {print}
         ' /home/hoangcn/testaction/text.txt > temp.txt && mv temp.txt /home/hoangcn/testaction/text.txt
         
-    - name: check file
+    - name: commit
       run: |
-        yq e '.services.interlink_backend.image' /home/hoangcn/testaction/text.txt
+        cd /home/hoangcn/testaction
+        git add .
+        git commit -m "Automated update image ${{ needs.build.outputs.image_name }}"
+        git push https://$TOKEN_REPO@github.com/Teddyhoang/testaction.git main
+      env:
+        TOKEN_REPO: ${{ secrets.TOKEN_REPO }}
       

@@ -42,7 +42,7 @@ jobs:
         {print}
         ' text.txt > temp.txt && mv temp.txt text.txt
         
-    - name: check file
-      run: |
-        yq e '.services.interlink_backend.image' text.txt
+    # - name: check file
+    #   run: |
+    #     yq e '.services.interlink_backend.image' text.txt
       

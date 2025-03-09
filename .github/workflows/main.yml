@@ -32,7 +32,7 @@ jobs:
     - name: test env image name
       run: echo ${{ build.env.IMAGE_NAME }}
     - name: change env
-      run: IMAGENAME=$(echo ${{ build.env.IMAGE_NAME }})
+      run: IMAGENAME=$(echo ${{ needs.build.env.IMAGE_NAME }})
     - name: change image name
       run: |
         sed -i "/interlink_backend:/,/image:/s/\(image:\s*\)[^ ]*/\1$IMAGENAME/" text.txt

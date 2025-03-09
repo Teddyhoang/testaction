@@ -44,5 +44,5 @@ jobs:
         
     - name: check file
       run: |
-        yq ".services.interlink_backend.image" text.txt
+        yq e '.services.interlink_backend.image' text.txt
       

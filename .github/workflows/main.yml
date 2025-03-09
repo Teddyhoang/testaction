@@ -30,7 +30,7 @@ jobs:
     needs: [build]
     steps:
     - name: test env image name
-      run: echo ${{ build.env.IMAGE_NAME }}
+      run: ${{ needs.build.env.IMAGE_NAME }}
     - name: change env
       run: IMAGENAME=$(echo ${{ needs.build.env.IMAGE_NAME }})
     - name: change image name

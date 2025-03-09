@@ -47,7 +47,7 @@ jobs:
         cd /home/hoangcn/testaction
         git add .
         git commit -m "Automated update image ${{ needs.build.outputs.image_name }}"
-        git push https://$TOKEN_REPO@github.com/Teddyhoang/testaction.git main
+        git push https://${{ env.TOKEN_REPO }}@github.com/Teddyhoang/testaction.git main
       env:
         TOKEN_REPO: ${{ secrets.TOKEN_REPO }}
       

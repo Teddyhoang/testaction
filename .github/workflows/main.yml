@@ -41,4 +41,7 @@ jobs:
         found && /image:/ {$0="    image: " new_image; found=0}
         {print}
         ' text.txt > temp.txt && mv temp.txt text.txt
+        
+    - name: check file
+      run: yq '.services.interlink_backend.image' text.txt
       

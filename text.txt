@@ -404,7 +404,7 @@ services:
       retries: 30
 
   interlink_backend:
-    image: hoangcn/hoangcn:1cd9a0f
+    image: hoangcn/hoangcn:7f0fd6f
     container_name: interlink_backend
     restart: always
     ports:

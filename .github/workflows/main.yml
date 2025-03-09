@@ -23,8 +23,7 @@ jobs:
       - name: Set github env image name
         id: builds
         run: |
-          IMAGE_NAME=$DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }}
-          echo "IMAGE_NAME_OUTPUT=$(echo $IMAGE_NAME)" >> $GITHUB_OUTPUT
+          echo "IMAGE_NAME_OUTPUT=$(echo $DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }})" >> $GITHUB_OUTPUT
 
       - name: Build and Tag Docker Image
         run: docker build -t ${{ steps.builds.outputs.IMAGE_NAME_OUTPUT }} -f Dockerfile .
@@ -33,12 +32,10 @@ jobs:
     runs-on: self-hosted
     needs: [build]
     env:
-      IMAGE_NAME: ${{ needs.build.outputs.image_name }}
+      IMAGE_NAME_OUTPUT: ${{ needs.build.outputs.image_name }}
     steps:
-    - name: test env image name
-      run: echo ${{ env.IMAGE_NAME }}
-      
     - name: change image name
       run: |
-        sed -i "/interlink_backend:/,/image:/s/\(image:\s*\)[^ ]*/\1${{ env.IMAGE_NAME }}/" text.txt
+        IMAGE_NAME=${{ env.IMAGE_NAME_OUTPUT }}
+        sed -i "/interlink_backend:/,/image:/s/\(image:\s*\)[^ ]*/\1$IMAGE_NAME/" text.txt
       

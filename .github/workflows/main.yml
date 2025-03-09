@@ -18,4 +18,13 @@ jobs:
 
       - name: Build and Tag Docker Image
         run: |
-          docker build -t techainer1t/interlink-backend:${{ env.COMMIT_SHA }} .
+          IMAGE_NAME=$DOCKER_HUB_NAMESPACE/$REPOSITORY_NAME_PART:${{ env.COMMIT_SHA }}
+          docker build -t $IMAGE_NAME .
+  deploy:
+    runs-on: self-hosted
+    needs: [build]
+    steps:
+    - name: change image name
+      run: |
+        sed -i '/interlink_backend:/,/image:/s|\(image: \S*\):[^ ]*|\1:${{ env.IMAGE_NAME }}|' text.txt
+      

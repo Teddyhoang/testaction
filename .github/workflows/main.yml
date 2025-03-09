@@ -36,6 +36,9 @@ jobs:
     steps:
     - name: change image name
       run: |
-        ESCAPED_IMAGE_NAME=$(printf '%s\n' "${{ env.IMAGE_NAME_OUTPUT }}" | sed 's/[\/&]/\\&/g')
-        sed -i "/interlink_backend:/,/image:/s/\(image:\s*\)[^ ]*|\1$ESCAPED_IMAGE_NAME|" text.txt
+        awk -v new_image="${{ needs.build.outputs.image_name }}" '
+        /interlink_backend:/ {found=1}
+        found && /image:/ {$0="    image: " new_image; found=0}
+        {print}
+        ' text.txt > temp.txt && mv temp.txt text.txt
       

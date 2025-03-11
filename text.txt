@@ -417,7 +417,7 @@ services:
       - redis
 
   interlink_notification:
-    image: techainer1t/interlink-notification:master-0.6.5
+    image: techainer1t/interlink-notification:master-0.6.6
     container_name: interlink_notification
     restart: always
     ports:
